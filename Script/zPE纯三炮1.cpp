@@ -1,0 +1,187 @@
+#include <avz.h>
+#include <dsl/shorthand.h>
+
+static bool Paused = false;
+static bool PausedSlowed = false;
+
+void AScript()
+{
+    // 高级暂停
+    AConnect('Z', [] {
+        Paused = !Paused;
+        PausedSlowed = false;
+        ASetAdvancedPause(Paused, false, 0);
+    });
+    // 下一帧
+    AConnect('X', [] {
+        Paused = false;
+        PausedSlowed = false;
+        ASetAdvancedPause(Paused, false, 0);
+        AConnect(ANowDelayTime(1), [] {
+            Paused = !Paused;
+            ASetAdvancedPause(Paused, false, 0);
+        });
+    });
+    // 0.25倍速
+    // 脱离倍速和高级暂停
+    AConnect('C', [] {
+        if (Paused) {
+            Paused = false;
+            PausedSlowed = true;
+            ASetAdvancedPause(Paused, false, 0);
+            AGetPvzBase()->TickMs() = 40;
+        } else if (PausedSlowed) {
+            Paused = true;
+            PausedSlowed = false;
+            ASetAdvancedPause(Paused, false, 0);
+            AGetPvzBase()->TickMs() = 10;
+        } else {
+            AGetPvzBase()->TickMs() = AGetPvzBase()->TickMs() == 10 ? 40 : 10;
+        }
+    });
+    // 十倍速
+    //AConnect('R', [] { AGetPvzBase()->TickMs() = AGetPvzBase()->TickMs() == 1 ? 10 : 1; });
+    // 卡槽置顶
+    //AConnect('V', [] { AMRef<int>(0x416DBE) = AMRef<int>(0x416DBE) == 699999 ? 100001 : 699999; });
+
+    // 脚本重新载入模式  
+    ASetReloadMode(AReloadMode::MAIN_UI_OR_FIGHT_UI);
+
+    ASetZombies({
+        ABC_12, // 冰车
+        AKG_17, // 矿工
+        AQQ_16, // 气球
+
+        AFT_21, // 扶梯
+        ATT_18, // 跳跳
+        
+        AHT_14, // 海豚
+        AQS_11, // 潜水
+
+        AGL_7,  // 橄榄
+        AXC_15, // 小丑
+        ATL_22, // 投篮
+        ACG_3,  // 撑杆
+
+        ABY_23, // 白眼
+        AHY_32, // 红眼
+        
+        ALZ_2,  // 路障
+        //ATT_4,  // 铁桶
+
+        ABJ_20, // 蹦极
+    });
+    ASelectCards({
+        AGJG_23,   // 高坚果
+        ADS_36,    // 大蒜
+        ADC_21,    // 地刺
+
+        AHY_16,    // 荷叶
+        AHMG_15,   // 毁灭菇
+        AKFD_35,   // 咖啡豆
+
+        ACHERRY_BOMB,  // 樱桃炸弹
+        AHBLJ_20,  // 辣椒
+        AHBG_14,   // 寒冰菇
+        AM_HBG_14, // 模仿寒冰菇 第一段始终是AM
+    });
+
+    /*At(ATime(1, -599))[] {
+        AAverageSpawn();
+        AMaidCheats::Dancing();
+        aPlantFixer.Start(ANGT_30, {{4, 4}, {3, 4}}, 1332);
+    };*/
+
+    //自动存冰 先用模仿冰,从后往前使用
+    aIceFiller.Start({{4, 3}});
+    //3门炮列表
+    aCobManager.SetList({{3,1},{4,1},{3,3}});
+
+    //C4u:I-B2-A2/P | IJ1-d5-Nd
+
+    //垫材逻辑
+    ATimeline CCTV = {
+        At(254) Card(AHY_16, 4, 8),
+    };
+    OnWave(2_20) CCTV;
+
+    //w1
+    OnWave(1) {
+        At(-599) Card(AHY_16, 4, 8) & Card(AGJG_23, 6, 1),
+        At(751-599) Card(AHY_16, 4, 7),
+        At(751+751-599) Card(AHY_16, 4, 6),
+        At(751+751+751-599) Card(AHY_16, 4, 4),
+        At(3001-599) Card(AGJG_23, 5, 1) ,
+        At(6002-599) Card(AGJG_23, 2, 4) ,
+    };
+
+    //w1-w9,w10-w19
+    ATimeline I_B2_A2P = {
+        At(551-198-100) Card(AKFD_35, 4, 3),//I
+
+        At(776) P(2,7.475),//B2
+
+        At(2301) A(2,8),//A2
+        At(2301) P(5,7.525),//P5
+    };
+    ATimeline IJ1_d5_Nd = { 
+        At(133) J(1,8),//J1
+        At(134-100-198) Card(AKFD_35, 4, 3),//I
+
+        At(981) P(5,2.5),//d5
+
+        At(2301) N({{4, 6},{4, 7},{3, 6},{3, 7}}),//N
+        At(2506) P(5,3.525),//d5
+    };
+    OnWave(1_9 % 1, 11_19 % 2) I_B2_A2P | IJ1_d5_Nd;
+
+
+    //w9后
+    OnWave(9) {
+        At(2501+133) J(1,8),//J1
+        At(2501+134-100-198) Card(AKFD_35, 4, 3),//I
+
+        At(2501+981) P(5,2.5),//d5
+
+        At(2501+2301+243) N({{4, 6},{4, 7},{3, 6},{3, 7}}),//N
+        At(2501+2506+243) P(5,3.525),//d5
+    };
+    for(int wave:{10})
+    {
+        AConnect(ATime(wave,0),[]{aIceFiller.Pause();});//暂停存冰
+        AConnect(ATime(wave,1500),[]{aIceFiller.GoOn();});//继续
+    }
+    //w10
+    OnWave(10) {
+        At(551-198-100) Card(AKFD_35, 4, 3),//I
+
+        At(776) P(2,7.6),//B2
+
+        At(2301) A(2,8),//A2
+        At(2301) P(5,7.525),//P5
+    };
+    //w19后
+    OnWave(19) {
+        At(2501+551-198-100) Card(AKFD_35, 4, 3),//I
+
+        At(2501+776) P(2,7),//B2
+
+        At(2501+2301) P(5,7),//P5
+    };
+    //w20
+    OnWave(20) { //3
+        At(133) J(1,8),//J1
+        At(134-100-198) Card(AKFD_35, 4, 3),//I
+
+        At(981-245) P(5,2.5),//d5
+
+        At(2301) N({{4, 6},{4, 7},{3, 6},{3, 7}}),//N
+        At(2506) P(5,3.525),//d5
+
+
+        At(2501+551-198-100) Card(AKFD_35, 4, 3),//I
+
+        At(2501+776) P(2,7),//B2
+    };
+
+}
